@@ -3139,6 +3139,56 @@ jumpto_tag(lbuf, forceit, keep_help)
 	goto erret;
     }
 
+    // hack 
+    // The files are actually located on a remote server, which is mounted at ~/w/mnt/, and not where the tag file thinks they are.
+    // The tag file is built on the remote machine, then the file paths are edited automatically to point to ~/w/dev/, as this is where the files
+    // are copied to upon opening on my local machine.
+    // 
+    // First, test to see if the file is already on the local machine - change ~/w/mnt to ~/w/dev.  Since both dirs have only 3 letters, this is easy:
+
+    int l = STRLEN(fname)+1;
+    char* dest = alloc(l);
+    STRCPY(dest, fname);
+    dest[17] = 'd';
+    dest[18] = 'e';
+    dest[19] = 'v';
+
+    // test to see if the file exists 
+    int open_test = open(dest, O_RDONLY);
+
+    if (open_test < 0)
+    {
+	// If the file doesn't exist, they need to be copied from the remote server before opening.
+	// Start by creating the destination directory (if it isn't already there).  Could probably use something other than a system() call, but it works for now.
+	int l2 = l+l+21;
+	char* command = alloc(l2);
+	char* mkdir = "mkdir -p";
+	sprintf(command, "mkdir -p `dirname %s`", dest);
+	system(command);
+
+	// Now copy the file over to the local machine.
+	char* prefix = "cp -r ";
+	STRCPY(command, prefix);
+	STRCPY(command+6, fname);
+	command[5+l] = ' ';
+	STRCPY(command+6+l, dest);
+	system(command);
+    }
+    else
+    {
+	// if the file does exist, then it was opened - close it.
+	close(open_test);
+    }
+
+    // at this point, the file exists on the local machine, under ~/w/dev instead of ~/w/mnt.  Change the file name again and continue as usual
+    fname[17] = 'd';
+    fname[18] = 'e';
+    fname[19] = 'v';
+    
+    vim_free(dest);
+
+    // end hack
+
     ++RedrawingDisabled;
 
 #ifdef FEAT_GUI
